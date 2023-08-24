@@ -5,7 +5,7 @@ import fitz
 import pandas as pd
 
 # extract text and coordinate information from pdf to dataframe
-def pdf2df(path, toc_pages=2, precision_dp=8):
+def pdf2df(path, precision_dp, toc_pages=2):
     doc = fitz.open(path)
     filename = path.split("\\")[-1]
 
@@ -71,7 +71,7 @@ def pdf2df(path, toc_pages=2, precision_dp=8):
                         df["xmax"].append(span["bbox"][2])
                         df["ymax"].append(span["bbox"][3])
                         df["text"].append(span["text"])
-                        df["font_size"].append(span["size"])
+                        df["font_size"].append(round(span["size"], precision_dp))
                         df["font_characteristics"].append(span["flags"])
                         df["font"].append(span["font"])
                         df["font_color"].append(span["color"])
@@ -181,6 +181,11 @@ def pdf2line(path):
     for page_no, page in enumerate(doc):
         for p in page.get_drawings():
             # get rid of the weird point object
+            # also ignore lines where fill is (1.0,1.0,1.0)
+            # this seems abit weird as pymupdf detects all lines/rectangles. sometimes,
+            # each line in a normal paragraph might be construed as a rectangle as well
+            # however, the fill color seems to be wrong. (1.0, 1.0, 1.0) is black (RGB)
+            # but what we see on the pdf is transparent
             if p["items"][0][0] != "re" or p["fill"] == (1.0, 1.0, 1.0):
                 continue
             if p["items"][0][1].width > 10 or p["items"][0][1].height > 10:
@@ -440,10 +445,10 @@ def is_heading_or_unsure(
     # return as heading, emphasis or super emphasis based on whether is it bold,
     # italic or both
     # we add 1 to the numbering if it is part of a list_block because it is quite common
-    # that we have two paragraphs with the same font style and font size but 1 is in a
-    # # numbering list while the other is not. The one in the numbering list should be
+    # that we have two paragraphs with the same font style and font size but one is in a
+    # numbering list while the other is not. The one in the numbering list should be
     # a sub heading of the other heading (without numbering list)
-    # adding True (list_block) value automatically adds 1
+    # adding True (list_block boolean) value automatically adds 1
     if font_size >= MOST_FREQ_FONT_SIZE and style != "content":
         return style + " " + str(heading_dict[font_size] + list_block)
     elif style == "content":
@@ -456,7 +461,7 @@ def is_heading_or_unsure(
 
 
 # function to extract everything and categorise them accordingly
-def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=8):
+def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
     (
         df,
         PAGE_WIDTH,
