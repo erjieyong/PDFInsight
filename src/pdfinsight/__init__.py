@@ -7,6 +7,7 @@ import pandas as pd
 # extract text and coordinate information from pdf to dataframe
 def pdf2df(path, toc_pages=2, precision_dp=8):
     doc = fitz.open(path)
+    filename = path.split("\\")[-1]
 
     # we extract all the page dict into a single dict
     block_dict = {}
@@ -19,6 +20,7 @@ def pdf2df(path, toc_pages=2, precision_dp=8):
 
     # declare empty dictionary to hold dataframe value
     df = {
+        "file":[],
         "page": [],
         "block": [],
         "xmin": [],
@@ -41,6 +43,7 @@ def pdf2df(path, toc_pages=2, precision_dp=8):
         for block in block_dict[page]:
             # skip if the block is a image
             if block["type"] == 1:
+                df['file'].append(filename)
                 df["page"].append(page)
                 df["block"].append(block_num)
                 df["xmin"].append(block["bbox"][0])
@@ -60,6 +63,7 @@ def pdf2df(path, toc_pages=2, precision_dp=8):
                     # ignoring the other information in line
                     for span in line["spans"]:
                         # only get the size
+                        df['file'].append(filename)
                         df["page"].append(page)
                         df["block"].append(block_num)
                         df["xmin"].append(span["bbox"][0])
@@ -75,7 +79,7 @@ def pdf2df(path, toc_pages=2, precision_dp=8):
             block_num += 1
 
     # convert to dataframe
-    df = pd.DataFrame(df)
+    df = pd.DataFrame(df) 
 
     # Remove trailing spaces
     df["text"] = df["text"].apply(lambda x: x.strip())
