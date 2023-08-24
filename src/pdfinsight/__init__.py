@@ -428,7 +428,7 @@ def get_heading_dict(df, MOST_FREQ_FONT_SIZE):
 
 # check for headings and categorise the rest as unsure
 def is_heading_or_unsure(
-    heading_dict, font_size, font, cat, list_block, MOST_FREQ_FONT_SIZE, path
+    heading_dict, font_size, font, cat, list_block, is_block_all_none, MOST_FREQ_FONT_SIZE,
 ):
     if cat != None:
         return cat
@@ -441,16 +441,28 @@ def is_heading_or_unsure(
     else:
         style = "content"
 
+    # CONDITION 1
     # for text whose font size bigger than most freq font_size,
-    # return as heading, emphasis or super emphasis based on whether is it bold,
-    # italic or both
+    # CONDITION 2
     # we add 1 to the numbering if it is part of a list_block because it is quite common
     # that we have two paragraphs with the same font style and font size but one is in a
     # numbering list while the other is not. The one in the numbering list should be
     # a sub heading of the other heading (without numbering list)
     # adding True (list_block boolean) value automatically adds 1
-    if font_size >= MOST_FREQ_FONT_SIZE and style != "content":
+    # CONDITION 3
+    # A row can only be considered as heading only if there's no other category in the 
+    # same block. For eg. the whole block must be NONE before it can be categorised as 
+    # heading
+
+    # return as heading, emphasis or super emphasis based on whether is it bold,
+    # italic or both as well as the hierachy (bigger font and not part of a numbering
+    # list will get a higher hierachy. 1 is highest)
+    if font_size >= MOST_FREQ_FONT_SIZE and style != "content" and is_block_all_none:
         return style + " " + str(heading_dict[font_size] + list_block)
+    # if there's any non None category in the same block, we treat it as "content"
+    # could be a paragraph but with a bold emphasis of bigger font to emphasis some text
+    elif font_size >= MOST_FREQ_FONT_SIZE and style != "content" and not is_block_all_none:
+        return "content"
     elif style == "content":
         # If it is  bigger than most freq font size, but is normal font,
         # just treat it as normal content
@@ -521,8 +533,8 @@ def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
             x.font,
             x["cat"],
             x.list_block,
+            df[(df["page"]==x.page) &(df['block'] == x.block)&(~df['cat'].isnull())].empty,
             MOST_FREQ_FONT_SIZE,
-            path,
         ),
         axis=1,
     )
