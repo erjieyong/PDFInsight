@@ -1,14 +1,10 @@
 [build-system]
-requires = [
-    "setuptools>=61.0",
-    "PyMuPDF>=1.22.5",
-    "pandas>=1.5.3",
-]
-build-backend = "setuptools.build_meta"
+requires = ["flit_core>=3.4"]
+build-backend = "flit_core.buildapi"
 
 [project]
 name = "PDFInsight"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="erjieyong", email="erjieyong@gmail.com" },
 ]
@@ -19,6 +15,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
+]
+dependencies = [
+  "PyMuPDF>=1.22.5",
+  "pandas>=1.5.3",
 ]
 
 [project.urls]
