@@ -5,7 +5,7 @@ import fitz
 import pandas as pd
 
 # extract text and coordinate information from pdf to dataframe
-def pdf2df(path, precision_dp, toc_pages=2):
+def pdf2df(path, precision_dp, toc_pages):
     doc = fitz.open(path)
     filename = path.split("\\")[-1]
 
@@ -483,7 +483,7 @@ def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
         MOST_FREQ_FONT,
         TOC_PAGES,
         CONTENT_PAGES,
-    ) = pdf2df(path, toc_pages, precision_dp)
+    ) = pdf2df(path, toc_pages = toc_pages, precision_dp= precision_dp)
 
     df_line = pdf2line(path)
 
