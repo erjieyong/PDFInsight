@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "PDFInsight"
-version = "0.0.2"
+version = "0.0.4"
 authors = [
   { name="erjieyong", email="erjieyong@gmail.com" },
 ]
