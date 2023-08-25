@@ -19,7 +19,7 @@ df = pdfinsight.pdf_extractor("sample.pdf")
 ```
 
 ## Installation
-`pip install PDFInsight`
+`pip install pdfinsight`
 
 ## References
 [https://github.com/pymupdf/PyMuPDF](https://github.com/pymupdf/PyMuPDF)
