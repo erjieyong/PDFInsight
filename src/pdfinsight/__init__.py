@@ -405,8 +405,8 @@ def get_heading_dict(df, MOST_FREQ_FONT_SIZE):
     # as well as those font with bold, italic or bolditalic characteristics
     # as we would classify this as headings
     df_headings = (
-        # df[(df["cat"].isna()) & (df["font"].str.contains(pattern))]
-        df[(df.groupby(["page", "block"])["cat"].transform(lambda x: all(value is None for value in x))) & (df["font"].str.contains(pattern))]
+        # df[(df.groupby(["page", "block"])["cat"].transform(lambda x: all(value is None for value in x))) & (df["font"].str.contains(pattern))]
+        df[(df["cat"].isna()) & (df["font"].str.contains(pattern))]
         .groupby(["font_size", "font"], as_index=False)
         .size()
         .sort_values("font_size", ascending=False)
