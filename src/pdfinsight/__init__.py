@@ -244,8 +244,7 @@ def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
     # or if "Page" and "of" are both found in text
     # treat the text as "page_number"
     if (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES) or (
-        "Page" in text and "of" in text and ymin_rep >= CONTENT_PAGES
-    ):
+        "Page" in text and "of" in text):
         # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
         return "page_number"
     return cat
