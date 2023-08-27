@@ -4,6 +4,7 @@ import re
 import fitz
 import pandas as pd
 
+
 # extract text and coordinate information from pdf to dataframe
 def pdf2df(path, precision_dp, toc_pages):
     doc = fitz.open(path)
@@ -20,7 +21,7 @@ def pdf2df(path, precision_dp, toc_pages):
 
     # declare empty dictionary to hold dataframe value
     df = {
-        "file":[],
+        "file": [],
         "page": [],
         "block": [],
         "xmin": [],
@@ -43,7 +44,7 @@ def pdf2df(path, precision_dp, toc_pages):
         for block in block_dict[page]:
             # skip if the block is a image
             if block["type"] == 1:
-                df['file'].append(filename)
+                df["file"].append(filename)
                 df["page"].append(page)
                 df["block"].append(block_num)
                 df["xmin"].append(block["bbox"][0])
@@ -63,7 +64,7 @@ def pdf2df(path, precision_dp, toc_pages):
                     # ignoring the other information in line
                     for span in line["spans"]:
                         # only get the size
-                        df['file'].append(filename)
+                        df["file"].append(filename)
                         df["page"].append(page)
                         df["block"].append(block_num)
                         df["xmin"].append(span["bbox"][0])
@@ -79,7 +80,7 @@ def pdf2df(path, precision_dp, toc_pages):
             block_num += 1
 
     # convert to dataframe
-    df = pd.DataFrame(df) 
+    df = pd.DataFrame(df)
 
     # Remove trailing spaces
     df["text"] = df["text"].apply(lambda x: x.strip())
@@ -118,42 +119,8 @@ def pdf2df(path, precision_dp, toc_pages):
         ["page", "ymin_round", "xmin_round"], ascending=[True, True, True]
     )
 
-    # show the difference in y-height compared to previous row
-    df["ymin_round_diff"] = df['ymin_round'].diff()
-
     # reset index
     df.reset_index(drop=True, inplace=True)
-
-    # check if the block is part of a numbering list
-    # eg. 1) text...
-    prev_ymin = None
-    prev_block = None
-    for idx, row in df.iterrows():
-        # ignore the first row
-        # detect if it is a new row
-        # if its a new row detect if text starts with common numbering list patterns
-        # 1., 2.3.1, 1), a., a), A., A) using
-        # length of text should be less than 10 (to give leeway for multi-level numbering list)
-        # start with numbers, alphabet
-        # ends with ")", ".", numbers or alphabets
-        if (
-            idx > 0
-            and abs(row["ymin"] - prev_ymin) > 5
-            and len(row["text"]) < 10
-            and re.search("^[0-9a-zA-Z]{1}[0-9.]*[0-9).]{1}$", row["text"])
-        ):
-            df.loc[idx, "list_block"] = True
-            prev_list = True
-        # if prev row is a list and current row belong to the same block as previous row
-        # then classify it as a list block as well
-        elif row["block"] == prev_block and prev_list == True:
-            df.loc[idx, "list_block"] = True
-            prev_list = True
-        else:
-            df.loc[idx, "list_block"] = False
-            prev_list = False
-        prev_ymin = row["ymin"]
-        prev_block = row["block"]
 
     return (
         df,
@@ -214,6 +181,58 @@ def pdf2line(path):
     return df_line
 
 
+# craete new df to check if each block is actually a new paragraph, or just a
+# continuation of the previous block
+def pdf2newpara(df, para_thres):
+    df_block_ymin = df.groupby(["page", "block"])["ymin_round"].agg(["min", "max"])
+    df_block_ymin["ymin_diff"] = df_block_ymin["min"] - df_block_ymin["max"].shift(1)
+    df_block_ymin["new_para"] = abs(df_block_ymin["ymin_diff"]) >= para_thres
+    df_block_ymin = df_block_ymin.reset_index()
+    df_block_ymin.loc[0, "new_para"] = True
+    df_block_ymin["refined_block"] = (
+        df_block_ymin["new_para"].apply(lambda x: 1 if x else 0).cumsum()
+    )
+
+    return df_block_ymin
+
+
+# create new column and check based on refined_block whether is this row part of a
+# list numbering block.
+def is_list_block(df):
+    # check if the block is part of a numbering list
+    # eg. 1) text...
+    prev_ymin = None
+    prev_block = None
+    for idx, row in df.iterrows():
+        # ignore the first row
+        # detect if it is a new row
+        # if its a new row detect if text starts with common numbering list patterns
+        # 1., 2.3.1, 1), a., a), A., A) using
+        # length of text should be less than 10 (to give leeway for multi-level numbering list)
+        # start with numbers, alphabet
+        # ends with ")", ".", numbers or alphabets
+        if (
+            idx > 0
+            and abs(row["ymin"] - prev_ymin) > 5
+            and len(row["text"]) < 10
+            and re.search("^[0-9a-zA-Z]{1}[0-9.]*[0-9).]{1}$", row["text"])
+        ):
+            df.loc[idx, "list_block"] = True
+            prev_list = True
+        # if prev row is a list and current row belong to the same block as previous row
+        # then classify it as a list block as well
+        elif row["refined_block"] == prev_block and prev_list == True:
+            df.loc[idx, "list_block"] = True
+            prev_list = True
+        else:
+            df.loc[idx, "list_block"] = False
+            prev_list = False
+        prev_ymin = row["ymin"]
+        prev_block = row["refined_block"]
+
+    return df
+
+
 # check if row is table of content
 def is_toc(page, cat, TOC_PAGES):
     if page <= TOC_PAGES:
@@ -247,7 +266,8 @@ def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
     # or if "Page" and "of" are both found in text
     # treat the text as "page_number"
     if (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES) or (
-        f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}" in text):
+        f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}" in text
+    ):
         # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
         return "page_number"
     return cat
@@ -402,7 +422,7 @@ def get_heading_dict(df, MOST_FREQ_FONT_SIZE):
     # we add a \ before + so as to escape it as a special char in regex
     pattern = "|".join(["BoldItalic", "\+F6", "Italic", "\+F7", "Bold", "\+F1", "\+F2"])
 
-    # we filter out those df rows where for the same block and page, there are 
+    # we filter out those df rows where for the same block and page, there are
     # no category defined
     # as well as those font with bold, italic or bolditalic characteristics
     # as we would classify this as headings
@@ -432,8 +452,17 @@ def get_heading_dict(df, MOST_FREQ_FONT_SIZE):
 
 # check for headings and categorise the rest as unsure
 def is_heading_or_unsure(
-    heading_dict, para_thres, font_size, font, cat, ymin_round_diff, list_block, is_block_all_none, MOST_FREQ_FONT_SIZE,
+    heading_dict,
+    para_thres,
+    font_size,
+    font,
+    cat,
+    list_block,
+    is_block_all_none_or_heading,
+    MOST_FREQ_FONT_SIZE,
+    text,
 ):
+    # text = text
     if cat != None:
         return cat
     if "BoldItalic" in font or "+F6" in font:
@@ -454,17 +483,18 @@ def is_heading_or_unsure(
     # a sub heading of the other heading (without numbering list)
     # adding True (list_block boolean) value automatically adds 1
     # CONDITION 3
-    # A row can only be considered as heading only if there's no other category in the 
-    # same block. For eg. the whole block must be NONE before it can be categorised as 
-    # heading
-    # CONDITION 4
-    # A row can only be considered as heading only if its respective ymin_round_diff
-    # is bigger than the para_thres
+    # A row can only be considered as heading only if there's no other category
+    # (except None or Heading) in the  same block. For eg. the whole block must be NONE
+    # or it contains heading before the current row can be categorised as heading.
 
     # return as heading, emphasis or super emphasis based on whether is it bold,
     # italic or both as well as the hierachy (bigger font and not part of a numbering
     # list will get a higher hierachy. 1 is highest)
-    if font_size >= MOST_FREQ_FONT_SIZE and style != "content" and is_block_all_none and ymin_round_diff > para_thres:
+    if (
+        font_size >= MOST_FREQ_FONT_SIZE
+        and style != "content"
+        and is_block_all_none_or_heading
+    ):
         return style + " " + str(heading_dict[font_size] + list_block)
     # treat all other supposed heading row text as content only
     elif font_size >= MOST_FREQ_FONT_SIZE and style != "content":
@@ -480,8 +510,8 @@ def is_heading_or_unsure(
 
 # function to extract everything and categorise them accordingly
 def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20):
-    '''
-    path: 
+    """
+    path:
         path to text-based pdf file
 
     toc_pages: int, default 2
@@ -496,10 +526,10 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
         - if difference of current row ymin and previous row ymax is less than gap_thres; OR
         - if difference of current row ymax and previous row ymax is less than gap_thres;
         then the rows would be considered as the same table
-    
+
     para_thres: int, default 20
         refers to the maximum gap between each row's ymin before it is considered a new paragraph. There should be no headings within the same paragraph except for emphasis (italic) or superemphasis (bold + italic). We made the assumption that there could only be a heading whenever there's a new paragraph. There should not be any heading that is part of another normal paragraph (i.e cat = content)
-    '''
+    """
     (
         df,
         PAGE_WIDTH,
@@ -509,9 +539,31 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
         MOST_FREQ_FONT,
         TOC_PAGES,
         CONTENT_PAGES,
-    ) = pdf2df(path, toc_pages = toc_pages, precision_dp= precision_dp)
+    ) = pdf2df(path, toc_pages=toc_pages, precision_dp=precision_dp)
 
-    df_line = pdf2line(path)
+    df_block = pdf2newpara(df, para_thres)
+
+    # display the block_ymin_diff extracted from df_block
+    df["block_ymin_diff"] = df.apply(
+        lambda x: df_block[
+            (df_block["page"] == x.page) & (df_block["block"] == x.block)
+        ]["ymin_diff"].values[0],
+        axis=1,
+    )
+
+    # add a new column (new_para) to show if current row's block is continuation of
+    # previous block or a new para
+    # this is a more robust block interpretation of pymupdf default block numbers
+    df["refined_block"] = df.apply(
+        lambda x: df_block[
+            (df_block["page"] == x.page) & (df_block["block"] == x.block)
+        ]["refined_block"].values[0],
+        axis=1,
+    )
+
+    # add a new column to check if current row is part of a numbering list block
+    # eg. 1) a) a. are all considered numbering list
+    df = is_list_block(df)
 
     # table of content
     df["cat"] = df.apply(lambda x: is_toc(x.page, x["cat"], TOC_PAGES), axis=1)
@@ -525,7 +577,7 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
             CONTENT_PAGES,
             PAGE_HEIGHT,
             x["cat"],
-            x.text
+            x.text,
         ),
         axis=1,
     )
@@ -560,10 +612,14 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
             x.font_size,
             x.font,
             x["cat"],
-            x.ymin_round_diff,
             x.list_block,
-            df[(df["page"]==x.page) &(df['block'] == x.block)&(~df['cat'].isnull())].empty,
+            # is_block_all_none_or_heading
+            df[
+                (df["refined_block"] == x.refined_block)
+                & ~((df["cat"].isnull()) | (df["cat"].str.contains("heading")))
+            ].empty,
             MOST_FREQ_FONT_SIZE,
+            x["text"],
         ),
         axis=1,
     )
