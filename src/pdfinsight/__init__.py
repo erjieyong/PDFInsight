@@ -118,6 +118,9 @@ def pdf2df(path, precision_dp, toc_pages):
         ["page", "ymin_round", "xmin_round"], ascending=[True, True, True]
     )
 
+    # show the difference in y-height compared to previous row
+    df["ymin_round_diff"] = df['ymin_round'].diff()
+
     # reset index
     df.reset_index(drop=True, inplace=True)
 
@@ -220,7 +223,7 @@ def is_toc(page, cat, TOC_PAGES):
 
 # check if row is header or footer
 def is_header_footer(
-    text_rep, xmin_rep, ymin_rep, ymin, CONTENT_PAGES, PAGE_HEIGHT, cat
+    text_rep, xmin_rep, ymin_rep, ymin, CONTENT_PAGES, PAGE_HEIGHT, cat, text
 ):
     if cat != None:
         return cat
@@ -244,7 +247,7 @@ def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
     # or if "Page" and "of" are both found in text
     # treat the text as "page_number"
     if (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES) or (
-        "Page" in text and "of" in text):
+        f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}" in text):
         # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
         return "page_number"
     return cat
@@ -429,7 +432,7 @@ def get_heading_dict(df, MOST_FREQ_FONT_SIZE):
 
 # check for headings and categorise the rest as unsure
 def is_heading_or_unsure(
-    heading_dict, font_size, font, cat, list_block, is_block_all_none, MOST_FREQ_FONT_SIZE,
+    heading_dict, para_thres, font_size, font, cat, ymin_round_diff, list_block, is_block_all_none, MOST_FREQ_FONT_SIZE,
 ):
     if cat != None:
         return cat
@@ -454,15 +457,17 @@ def is_heading_or_unsure(
     # A row can only be considered as heading only if there's no other category in the 
     # same block. For eg. the whole block must be NONE before it can be categorised as 
     # heading
+    # CONDITION 4
+    # A row can only be considered as heading only if its respective ymin_round_diff
+    # is bigger than the para_thres
 
     # return as heading, emphasis or super emphasis based on whether is it bold,
     # italic or both as well as the hierachy (bigger font and not part of a numbering
     # list will get a higher hierachy. 1 is highest)
-    if font_size >= MOST_FREQ_FONT_SIZE and style != "content" and is_block_all_none:
+    if font_size >= MOST_FREQ_FONT_SIZE and style != "content" and is_block_all_none and ymin_round_diff > para_thres:
         return style + " " + str(heading_dict[font_size] + list_block)
-    # if there's any non None category in the same block, we treat it as "content"
-    # could be a paragraph but with a bigger font and bold to emphasis some text only (not heading)
-    elif font_size >= MOST_FREQ_FONT_SIZE and style != "content" and not is_block_all_none:
+    # treat all other supposed heading row text as content only
+    elif font_size >= MOST_FREQ_FONT_SIZE and style != "content":
         return "content"
     elif style == "content":
         # If it is  bigger than most freq font size, but is normal font,
@@ -474,7 +479,27 @@ def is_heading_or_unsure(
 
 
 # function to extract everything and categorise them accordingly
-def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
+def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20):
+    '''
+    path: 
+        path to text-based pdf file
+
+    toc_pages: int, default 2
+        number of pages to be classified as table of contents (toc). toc pages would not be checked for all subsequent categories such as header, footer, table or contents
+
+    precision_dp: int, default 2
+        the number of decimal points for font_size, xmin_rep, ymin_rep. Relaxing the precision will allow more rows to be grouped together. This is needed because even in the same line in a paragraph, there could be minor difference in the letter height, thereby causing small differences in the ymin or xmin detected.
+
+    gap_thres: int, default 10
+        refers to the maximum gap between table lines before classifying the coordinates as a new table. There are 3 conditions:
+        - if difference of current row ymin and previous row ymin is less than gap_thres; OR
+        - if difference of current row ymin and previous row ymax is less than gap_thres; OR
+        - if difference of current row ymax and previous row ymax is less than gap_thres;
+        then the rows would be considered as the same table
+    
+    para_thres: int, default 20
+        refers to the maximum gap between each row's ymin before it is considered a new paragraph. There should be no headings within the same paragraph except for emphasis (italic) or superemphasis (bold + italic). We made the assumption that there could only be a heading whenever there's a new paragraph. There should not be any heading that is part of another normal paragraph (i.e cat = content)
+    '''
     (
         df,
         PAGE_WIDTH,
@@ -500,6 +525,7 @@ def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
             CONTENT_PAGES,
             PAGE_HEIGHT,
             x["cat"],
+            x.text
         ),
         axis=1,
     )
@@ -530,9 +556,11 @@ def pdf_extractor(path, toc_pages=2, gap_thres=10, precision_dp=2):
     df["cat"] = df.apply(
         lambda x: is_heading_or_unsure(
             heading_dict,
+            para_thres,
             x.font_size,
             x.font,
             x["cat"],
+            x.ymin_round_diff,
             x.list_block,
             df[(df["page"]==x.page) &(df['block'] == x.block)&(~df['cat'].isnull())].empty,
             MOST_FREQ_FONT_SIZE,
