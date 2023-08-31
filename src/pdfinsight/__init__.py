@@ -198,7 +198,7 @@ def pdf2newpara(df, para_thres):
 
 # create new column and check based on refined_block whether is this row part of a
 # list numbering block.
-def is_list_block(df):
+def is_block_is_list(df):
     # check if the block is part of a numbering list
     # eg. 1) text...
     prev_ymin = None
@@ -217,15 +217,15 @@ def is_list_block(df):
             and len(row["text"]) < 10
             and re.search("^[0-9a-zA-Z]{1}[0-9.]*[0-9).]{1}$", row["text"])
         ):
-            df.loc[idx, "list_block"] = True
+            df.loc[idx, "block_is_list"] = True
             prev_list = True
         # if prev row is a list and current row belong to the same block as previous row
         # then classify it as a list block as well
         elif row["refined_block"] == prev_block and prev_list == True:
-            df.loc[idx, "list_block"] = True
+            df.loc[idx, "block_is_list"] = True
             prev_list = True
         else:
-            df.loc[idx, "list_block"] = False
+            df.loc[idx, "block_is_list"] = False
             prev_list = False
         prev_ymin = row["ymin"]
         prev_block = row["refined_block"]
@@ -457,7 +457,7 @@ def is_heading_or_unsure(
     font_size,
     font,
     cat,
-    list_block,
+    block_is_list,
     is_block_all_none_or_heading,
     MOST_FREQ_FONT_SIZE,
     text,
@@ -477,11 +477,11 @@ def is_heading_or_unsure(
     # CONDITION 1
     # for text whose font size bigger than most freq font_size,
     # CONDITION 2
-    # we add 1 to the numbering if it is part of a list_block because it is quite common
+    # we add 1 to the numbering if it is part of a block_is_list because it is quite common
     # that we have two paragraphs with the same font style and font size but one is in a
     # numbering list while the other is not. The one in the numbering list should be
     # a sub heading of the other heading (without numbering list)
-    # adding True (list_block boolean) value automatically adds 1
+    # adding True (block_is_list boolean) value automatically adds 1
     # CONDITION 3
     # A row can only be considered as heading only if there's no other category
     # (except None or Heading) in the  same block. For eg. the whole block must be NONE
@@ -495,7 +495,7 @@ def is_heading_or_unsure(
         and style != "content"
         and is_block_all_none_or_heading
     ):
-        return style + " " + str(heading_dict[font_size] + list_block)
+        return style + " " + str(heading_dict[font_size] + block_is_list)
     # treat all other supposed heading row text as content only
     elif font_size >= MOST_FREQ_FONT_SIZE and style != "content":
         return "content"
@@ -563,7 +563,7 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
 
     # add a new column to check if current row is part of a numbering list block
     # eg. 1) a) a. are all considered numbering list
-    df = is_list_block(df)
+    df = is_block_is_list(df)
 
     # table of content
     df["cat"] = df.apply(lambda x: is_toc(x.page, x["cat"], TOC_PAGES), axis=1)
@@ -612,7 +612,7 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
             x.font_size,
             x.font,
             x["cat"],
-            x.list_block,
+            x.block_is_list,
             # is_block_all_none_or_heading
             df[
                 (df["refined_block"] == x.refined_block)
@@ -623,6 +623,34 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
         ),
         axis=1,
     )
+
+    # Organise all the columns
+    df = df[
+        [
+            "file",
+            "page",
+            "block",
+            "refined_block",
+            "block_ymin_diff",
+            "block_is_list",
+            "xmin",
+            "ymin",
+            "xmax",
+            "ymax",
+            "xmin_round",
+            "ymin_round",
+            "text_rep",
+            "xmin_rep",
+            "ymin_rep",
+            "font_size",
+            "font_characteristics",
+            "font",
+            "font_color",
+            "text",
+            "image",
+            "cat",
+        ]
+    ]
 
     return df
 
