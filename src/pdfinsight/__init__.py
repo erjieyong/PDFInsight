@@ -495,7 +495,7 @@ def is_heading_or_unsure(
         and style != "content"
         and is_block_all_none_or_heading
     ):
-        return style + " " + str(heading_dict[font_size] + block_is_list)
+        return style + str(heading_dict[font_size] + block_is_list)
     # treat all other supposed heading row text as content only
     elif font_size >= MOST_FREQ_FONT_SIZE and style != "content":
         return "content"
