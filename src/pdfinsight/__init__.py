@@ -662,3 +662,35 @@ def remove_toc(df):
     df = df[~(df["cat"] == "toc")]
     df.reset_index(drop=True, inplace=True)
     return df
+
+
+# combine text of similar category into a single row.
+def combine_categories(df):
+    df_combined_cleaned = []
+    prev_row = None
+    prev_row_text = None
+    for idx, row in df.iterrows():
+        if idx == 0:
+            prev_row_text = row["text"]
+        elif prev_row["cat"] != row["cat"]:
+            # if current row's cat is different from previous row's cat,
+            # then push prev_row and prev_row_text to new df_combined_clean
+            df_combined_cleaned.append(
+                [prev_row["file"], prev_row["page"], prev_row_text, prev_row["cat"]]
+            )
+            # set the prev_row_text to start with the text from this current row
+            prev_row_text = row["text"]
+        # if the current row's cat is same as previous row
+        else:
+            # if new row_ymin 20px more than prev_row_ymin,
+            #  then add \n instead of empty space
+            if row["refined_block"] != prev_row["refined_block"]:
+                prev_row_text = prev_row_text + "\n" + row["text"]
+            else:
+                prev_row_text = prev_row_text + " " + row["text"]
+        prev_row = row
+    df_combined_cleaned = pd.DataFrame(
+        df_combined_cleaned, columns=["file", "page", "text", "cat"]
+    )
+
+    return df_combined_cleaned
