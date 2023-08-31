@@ -625,3 +625,12 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
     )
 
     return df
+
+
+def remove_toc(df):
+    """
+    Remove the rows that are categorised as "toc" and reset the index
+    """
+    df = df[~(df["cat"] == "toc")]
+    df.reset_index(drop=True, inplace=True)
+    return df
