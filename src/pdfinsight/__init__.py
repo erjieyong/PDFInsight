@@ -666,6 +666,10 @@ def remove_toc(df):
 
 # combine text of similar category into a single row.
 def combine_categories(df):
+    """
+    For each row in a dataframe, check if its category is same as the previous row
+    If yes, merge them together and assign the appropriate separator ('\n' or ' ')
+    """
     df_combined_cleaned = []
     prev_row = None
     prev_row_text = None
@@ -694,3 +698,88 @@ def combine_categories(df):
     )
 
     return df_combined_cleaned
+
+
+class Headings:
+    def __init__(self, df):
+        self.headlist = [cat for cat in df["cat"].unique() if "heading" in cat]
+        self.headlist.sort()
+        self.headdict = {}
+        for i in self.headlist:
+            self.headdict[i] = None
+
+    def register_heading(self, heading, text):
+        self.headdict[heading] = text
+        for i in range(self.headlist.index(heading) + 1, len(self.headlist)):
+            self.headdict[self.headlist[i]] = None
+
+    def reset(self):
+        for i in self.headlist:
+            self.headdict[i] = None
+
+    def get_values(self):
+        return list(self.headdict.values())
+
+
+# Create a new dataframe for the transformed format
+def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "footnote"]):
+    """
+    Create a new dataframe that extracts the respective headings
+    (heading1, heading 2 or more)for the text content
+
+    df:
+        Dataframe extracted after running pdf_extractor(). It should contain the categories
+
+    ignore_cat: default ['footer', 'header', 'page_number', 'footnote']
+        List of category names that you want to ignore. The text content of these categories would not be part of the output
+    """
+    # combine text of similar category into a single row.
+    df_combined_cleaned = combine_categories(df)
+
+    transformed_data = []
+
+    headings = Headings(df_combined_cleaned)
+    current_content = []
+
+    for file in df_combined_cleaned["file"].unique():
+        for idx, row in df_combined_cleaned[
+            (df_combined_cleaned["page"] > 2) & (df_combined_cleaned["file"] == file)
+        ].iterrows():
+            if row["cat"] in ignore_cat:
+                continue
+            elif row["cat"] in headings.headlist:
+                for heading in headings.headlist:
+                    if row["cat"] == heading:
+                        if headings.headdict[heading]:
+                            transformed_data.append(
+                                [file]
+                                + list(headings.headdict.values())
+                                + ["\n".join(current_content)]
+                            )
+                        headings.register_heading(heading, row["text"])
+                        current_content = []
+                        break
+            else:
+                current_content.append(row["text"])
+
+            # Append the last set of data
+            if (
+                idx
+                == df_combined_cleaned[
+                    (df_combined_cleaned["page"] > 2)
+                    & (df_combined_cleaned["file"] == file)
+                ].index[-1]
+            ):
+                transformed_data.append(
+                    [file]
+                    + list(headings.headdict.values())
+                    + ["\n".join(current_content)]
+                )
+                headings.reset()
+                current_content = []
+
+    transformed_df = pd.DataFrame(
+        transformed_data, columns=(["file"] + headings.headlist + ["content"])
+    )
+
+    return transformed_df
