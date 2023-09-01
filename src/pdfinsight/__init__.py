@@ -112,11 +112,12 @@ def pdf2df(path, precision_dp, toc_pages):
 
     # create a rounded xmin_round ymin_round col to account for subscript, superscript position in the same line
     df["xmin_round"] = df["xmin"].apply(lambda x: round(x, 1))
-    df["ymin_round"] = df["ymin"].apply(lambda x: round(x, -1))
+    df["ymin_round_tenth"] = df["ymin"].apply(lambda x: round(x, -1))
+    df["ymin_round"] = df["ymin"].apply(lambda x: round(x, 0))
 
     # sort the values so that it appears in a top to down, left to right format
     df = df.sort_values(
-        ["page", "ymin_round", "xmin_round"], ascending=[True, True, True]
+        ["page", "ymin_round_tenth", "xmin_round"], ascending=[True, True, True]
     )
 
     # reset index
@@ -649,6 +650,7 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
             "ymax",
             "xmin_round",
             "ymin_round",
+            "ymin_round_tenth",
             "text_rep",
             "xmin_rep",
             "ymin_rep",
