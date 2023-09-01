@@ -265,8 +265,18 @@ def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
     # if the text equals to page number
     # or if "Page" and "of" are both found in text
     # treat the text as "page_number"
-    if (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES) or (
-        f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}" in text
+    if (
+        (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES)
+        or (
+            # assuming page numbering starts from 1 after the TOC pages
+            f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}"
+            in text
+        )
+        or (
+            # assuming page numbering starts from 1 from the first page
+            f"Page {(page)} of {CONTENT_PAGES+TOC_PAGES}"
+            in text
+        )
     ):
         # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
         return "page_number"
@@ -783,3 +793,86 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
     )
 
     return transformed_df
+
+
+def df2docstore(
+    df, chunk_size=1000, start_text_dict=None, link_dict=None, link_date_dict=None
+):
+    """
+    Convert dataframe that has been pivoted by heading into a document store
+    that is suitable for vector database embeddings ingestion.
+
+    For each chunk, the respective heading1, heading2 and so on would be repeated
+    so as to provide context to the chunk for subsequent chatbot understanding.
+
+    df:
+        Dataframe extracted after running pivot_df_by_heading().
+
+    start_text_dict: default None
+        Dictionary with full file name ("sample.pdf") as the key and any additional
+        text that you want to append at the start of each docs within each file
+
+    link_dict: default None
+        Dictionary with full file name ("sample.pdf") as the key and the url for each file
+
+    link_date_dict: default None
+        Dictionary with full file name ("sample.pdf") as the key and the date where each
+        link was last accessed or where each file was last updated
+
+    chunk_size: int default 1000
+        A soft limit to join all the text (start_text, headings, content) for each row
+        in the dataframe. If the length of the text for an single row already exceeds
+        the chunk_size, it will still be processed in its full text length that even
+        though the length exceeds chunk_size.
+    """
+    if start_text_dict:
+        df["start_text"] = df["file"].apply(lambda x: start_text_dict[x])
+    else:
+        df["start_text"] = None
+
+    if link_dict:
+        df["link"] = df["file"].apply(lambda x: link_dict[x])
+    else:
+        df["link"] = None
+
+    if link_date_dict:
+        df["update"] = df["file"].apply(lambda x: link_date_dict[x])
+    else:
+        df["update"] = None
+
+    # fillna to replace any None value so that we can join the headings later without any error
+    df.fillna("", inplace=True)
+
+    doc_store = []
+    filtered_columns = [
+        col for col in df.columns if "heading" in col or "content" in col
+    ]
+
+    for file in df.file.unique():
+        chunk = ""
+        for idx, row in df[df["file"] == file].iterrows():
+            if chunk == "":
+                chunk = row["start_text"] + "\n" + "\n".join(row[filtered_columns])
+            elif len(chunk + "\n".join(row[filtered_columns])) > chunk_size:
+                doc_store.append(
+                    {
+                        "content": chunk.strip().replace("\n\n", "\n"),
+                        "source": row["link"],
+                        "update": row["update"],
+                    }
+                )
+                chunk = row["start_text"] + "\n" + "\n".join(row[filtered_columns])
+            else:
+                chunk = chunk + "\n" + "\n".join(row[filtered_columns])
+
+        # if until end of file, and the len is still within CHUNK_SIZE, just append
+        # everything to the doc_store
+        doc_store.append(
+            {
+                "content": chunk.strip().replace("\n\n\n", "\n\n"),
+                "source": row["link"],
+                "update": row["update"],
+            }
+        )
+
+    return doc_store
