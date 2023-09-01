@@ -112,7 +112,7 @@ def pdf2df(path, precision_dp, toc_pages):
 
     # create a rounded xmin_round ymin_round col to account for subscript, superscript position in the same line
     df["xmin_round"] = df["xmin"].apply(lambda x: round(x, 1))
-    df["ymin_round"] = df["ymin"].apply(lambda x: round(x, 0))
+    df["ymin_round"] = df["ymin"].apply(lambda x: round(x, -1))
 
     # sort the values so that it appears in a top to down, left to right format
     df = df.sort_values(
@@ -753,7 +753,7 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
 
     for file in df_combined_cleaned["file"].unique():
         for idx, row in df_combined_cleaned[
-            (df_combined_cleaned["page"] > 2) & (df_combined_cleaned["file"] == file)
+            df_combined_cleaned["file"] == file
         ].iterrows():
             if row["cat"] in ignore_cat:
                 continue
