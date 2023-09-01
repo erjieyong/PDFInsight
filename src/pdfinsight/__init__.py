@@ -757,7 +757,19 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
         for idx, row in df_combined_cleaned[
             df_combined_cleaned["file"] == file
         ].iterrows():
-            if row["cat"] in ignore_cat:
+            # Append the last set of data
+            if (
+                idx
+                == df_combined_cleaned[(df_combined_cleaned["file"] == file)].index[-1]
+            ):
+                transformed_data.append(
+                    [file]
+                    + list(headings.headdict.values())
+                    + ["\n".join(current_content)]
+                )
+                headings.reset()
+                current_content = []
+            elif row["cat"] in ignore_cat:
                 continue
             elif row["cat"] in headings.headlist:
                 for heading in headings.headlist:
@@ -773,22 +785,6 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
                         break
             else:
                 current_content.append(row["text"])
-
-            # Append the last set of data
-            if (
-                idx
-                == df_combined_cleaned[
-                    (df_combined_cleaned["page"] > 2)
-                    & (df_combined_cleaned["file"] == file)
-                ].index[-1]
-            ):
-                transformed_data.append(
-                    [file]
-                    + list(headings.headdict.values())
-                    + ["\n".join(current_content)]
-                )
-                headings.reset()
-                current_content = []
 
     transformed_df = pd.DataFrame(
         transformed_data, columns=(["file"] + headings.headlist + ["content"])
