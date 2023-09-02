@@ -774,7 +774,9 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
             elif row["cat"] in headings.headlist:
                 for heading in headings.headlist:
                     if row["cat"] == heading:
-                        if headings.headdict[heading]:
+                        # if there's already content previously found, push them to
+                        # transformed_data first before starting afresh
+                        if current_content:
                             transformed_data.append(
                                 [file]
                                 + list(headings.headdict.values())
