@@ -247,10 +247,8 @@ def is_header_footer(
 ):
     if cat != None:
         return cat
-    if (
-        (text_rep >= CONTENT_PAGES)
-        and (xmin_rep >= CONTENT_PAGES)
-        and (ymin_rep >= CONTENT_PAGES)
+    if (text_rep >= CONTENT_PAGES) and (
+        (xmin_rep >= CONTENT_PAGES) or (ymin_rep >= CONTENT_PAGES)
     ):
         if ymin < PAGE_HEIGHT * 0.25:
             return "header"
