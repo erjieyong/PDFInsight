@@ -266,6 +266,7 @@ def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
     # treat the text as "page_number"
     if (
         (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES)
+        or (text == str(page - 1) and ymin_rep >= CONTENT_PAGES - 1)
         or (
             # assuming page numbering starts from 1 after the TOC pages
             f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}"
