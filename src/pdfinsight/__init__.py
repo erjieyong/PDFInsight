@@ -409,7 +409,7 @@ def is_footnote(df, MOST_FREQ_FONT_SIZE):
 
     # change the sorting back to normal top down, left right
     df = df.sort_values(
-        ["page", "ymin_round", "xmin_round"], ascending=[True, True, True]
+        ["page", "ymin_round_tenth", "xmin_round"], ascending=[True, True, True]
     )
     df.reset_index(drop=True, inplace=True)
 
