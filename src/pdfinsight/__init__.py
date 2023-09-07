@@ -258,29 +258,58 @@ def is_header_footer(
 
 
 # check if row is page number
-def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
-    if cat != None:
-        return cat
-    # if the text equals to page number
-    # or if "Page" and "of" are both found in text
-    # treat the text as "page_number"
-    if (
-        (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES)
-        or (text == str(page - 1) and ymin_rep >= CONTENT_PAGES - 1)
-        or (
-            # assuming page numbering starts from 1 after the TOC pages
-            f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}"
-            in text
-        )
-        or (
-            # assuming page numbering starts from 1 from the first page
-            f"Page {(page)} of {CONTENT_PAGES+TOC_PAGES}"
-            in text
-        )
-    ):
-        # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
-        return "page_number"
-    return cat
+def is_page_number(df, row_limit, MOST_FREQ_FONT_SIZE):
+    for page in df.page.unique():
+        not_detected = True
+        page_df = df[df["page"] == page]
+
+        for idx, row in page_df.head(row_limit).iterrows():
+            if (
+                re.search("(?i)^page \d+ of \d+$|^\d+$", row["text"])
+                and row["cat"] == None
+                and row["font_size"] > MOST_FREQ_FONT_SIZE * 0.75
+            ):
+                df.loc[idx, "cat"] = "page_number"
+                not_detected = False
+                break
+
+        if not_detected:
+            # we inverse the page to loop from the bottom up
+            for idx, row in page_df.tail(row_limit)[::-1].iterrows():
+                if (
+                    re.search("(?i)^page \d+ of \d+$|^\d+$", row["text"])
+                    and row["cat"] == None
+                    and row["font_size"] > MOST_FREQ_FONT_SIZE * 0.75
+                ):
+                    df.loc[idx, "cat"] = "page_number"
+                    break
+
+    return df
+
+
+# def is_page_number(text, page, ymin_rep, TOC_PAGES, CONTENT_PAGES, cat):
+#     if cat != None:
+#         return cat
+#     # if the text equals to page number
+#     # or if "Page" and "of" are both found in text
+#     # treat the text as "page_number"
+#     if (
+#         (text == str(page - TOC_PAGES) and ymin_rep >= CONTENT_PAGES)
+#         or (text == str(page - 1) and ymin_rep >= CONTENT_PAGES - 1)
+#         or (
+#             # assuming page numbering starts from 1 after the TOC pages
+#             f"Page {(page - TOC_PAGES)} of {CONTENT_PAGES}"
+#             in text
+#         )
+#         or (
+#             # assuming page numbering starts from 1 from the first page
+#             f"Page {(page)} of {CONTENT_PAGES+TOC_PAGES}"
+#             in text
+#         )
+#     ):
+#         # if ymin < PAGE_HEIGHT*0.25 or ymin > PAGE_HEIGHT*0.75:
+#         return "page_number"
+#     return cat
 
 
 # check for table coordinates
@@ -519,7 +548,9 @@ def is_heading_or_unsure(
 
 
 # function to extract everything and categorise them accordingly
-def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20):
+def pdf_extractor(
+    path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20, pageno_row_limit=5
+):
     """
     path:
         path to text-based pdf file
@@ -592,12 +623,14 @@ def pdf_extractor(path, toc_pages=2, precision_dp=2, gap_thres=10, para_thres=20
         axis=1,
     )
     # page number
-    df["cat"] = df.apply(
-        lambda x: is_page_number(
-            x.text, x.page, x.ymin_rep, TOC_PAGES, CONTENT_PAGES, x["cat"]
-        ),
-        axis=1,
-    )
+    df = is_page_number(df, pageno_row_limit, MOST_FREQ_FONT_SIZE)
+    # df["cat"] = df.apply(
+    #     lambda x: is_page_number(
+    #         x.text, x.page, x.ymin_rep, TOC_PAGES, CONTENT_PAGES, x["cat"]
+    #     ),
+    #     axis=1,
+    # )
+
     # table ymin and ymax
     df_table = pdf_get_table_cood(path, TOC_PAGES, gap_thres)
     # tables
