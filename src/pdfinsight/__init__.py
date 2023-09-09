@@ -799,7 +799,8 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
                 idx
                 == df_combined_cleaned[(df_combined_cleaned["file"] == file)].index[-1]
             ):
-                current_content.append(row["text"])
+                if row["cat"] not in ignore_cat:
+                    current_content.append(row["text"])
                 transformed_data.append(
                     [file]
                     + list(headings.headdict.values())
