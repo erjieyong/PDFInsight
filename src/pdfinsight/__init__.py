@@ -720,7 +720,7 @@ def combine_categories(df):
     for idx, row in df.iterrows():
         if idx == 0:
             prev_row_text = row["text"]
-        elif prev_row["cat"] != row["cat"]:
+        elif prev_row["cat"] != row["cat"] and prev_row_text:
             # if current row's cat is different from previous row's cat,
             # then push prev_row and prev_row_text to new df_combined_clean
             df_combined_cleaned.append(
@@ -737,6 +737,11 @@ def combine_categories(df):
             else:
                 prev_row_text = prev_row_text + " " + row["text"]
         prev_row = row
+
+    # Make sure to push the last row to the df_combined_cleaned
+    df_combined_cleaned.append(
+        [prev_row["file"], prev_row["page"], prev_row_text, prev_row["cat"]]
+    )
     df_combined_cleaned = pd.DataFrame(
         df_combined_cleaned, columns=["file", "page", "text", "cat"]
     )
@@ -794,6 +799,7 @@ def pivot_df_by_heading(df, ignore_cat=["footer", "header", "page_number", "foot
                 idx
                 == df_combined_cleaned[(df_combined_cleaned["file"] == file)].index[-1]
             ):
+                current_content.append(row["text"])
                 transformed_data.append(
                     [file]
                     + list(headings.headdict.values())
