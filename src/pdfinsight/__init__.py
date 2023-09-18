@@ -117,7 +117,8 @@ def pdf2df(path, precision_dp, toc_pages):
 
     # sort the values so that it appears in a top to down, left to right format
     df = df.sort_values(
-        ["page", "ymin_round_tenth", "xmin_round"], ascending=[True, True, True]
+        ["page", "block", "ymin_round_tenth", "xmin_round"],
+        ascending=[True, True, True, True],
     )
 
     # reset index
@@ -442,7 +443,8 @@ def is_footnote(df, MOST_FREQ_FONT_SIZE):
 
     # change the sorting back to normal top down, left right
     df = df.sort_values(
-        ["page", "ymin_round_tenth", "xmin_round"], ascending=[True, True, True]
+        ["page", "block", "ymin_round_tenth", "xmin_round"],
+        ascending=[True, True, True, True],
     )
     df.reset_index(drop=True, inplace=True)
 
