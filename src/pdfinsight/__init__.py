@@ -355,7 +355,7 @@ def pdf_get_table_cood(path, toc_pages=2, gap_thres=10):
         last_ymin = row.ymin
         last_ymax = row.ymax
 
-    if df_line["table"].isnull().any():
+    if df_line["table"].isnull().all():
         return
 
     df_table = {
