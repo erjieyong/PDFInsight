@@ -573,6 +573,9 @@ def pdf_extractor(
 
     para_thres: int, default 20
         refers to the maximum gap between each row's ymin before it is considered a new paragraph. There should be no headings within the same paragraph except for emphasis (italic) or superemphasis (bold + italic). We made the assumption that there could only be a heading whenever there's a new paragraph. There should not be any heading that is part of another normal paragraph (i.e cat = content)
+
+    pageno_row_limit: int, default 5
+        refers to the maximum number of rows (either from top or bottom) that the page number should appear to be eligible to be classified as page number.
     """
     (
         df,
